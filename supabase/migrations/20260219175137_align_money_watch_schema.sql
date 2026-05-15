@@ -1,5 +1,50 @@
--- Add username to users
+-- Add missing columns and tables to align with Money-Watch architecture
+
+-- Update users table
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS name text;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS username text;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS bank_balance numeric(14,2) NOT NULL DEFAULT 0;
+
+-- Create user_settings table
+CREATE TABLE IF NOT EXISTS public.user_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  daily_limit numeric(14,2),
+  weekly_limit numeric(14,2),
+  monthly_limit numeric(14,2),
+  daily_savings_goal numeric(14,2),
+  weekly_savings_goal numeric(14,2),
+  monthly_savings_goal numeric(14,2),
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(user_id)
+);
+
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own settings"
+  ON public.user_settings FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own settings"
+  ON public.user_settings FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own settings"
+  ON public.user_settings FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+-- Ensure transactions table matches schema
+-- The initial migration might have different names, let's align them.
+-- In AI_CONTEXT.md, transactions has 'category' (text) and 'date' (timestamptz)
+-- In initial migration, it has 'description' (text) and 'created_at' (timestamptz).
+-- We'll keep description and created_at but add type and category as text.
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS type text;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS category text;
+-- Also add category_id for our dynamic category feature
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS category_id uuid;
 
 -- Create notifications table
 CREATE TABLE IF NOT EXISTS public.notifications (
@@ -24,7 +69,7 @@ CREATE POLICY "Users can update own notifications"
   TO authenticated
   USING (auth.uid() = user_id);
 
--- Create user_categories table
+-- Create user_categories table (for the LogExpenseModal dynamic categories)
 CREATE TABLE IF NOT EXISTS public.user_categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -40,8 +85,7 @@ CREATE POLICY "Users can view own categories"
   TO authenticated
   USING (auth.uid() = user_id);
 
--- Add category_id to transactions
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES public.user_categories(id) ON DELETE SET NULL;
+-- RPC Functions
 
 -- create_notification function
 CREATE OR REPLACE FUNCTION public.create_notification(
@@ -88,8 +132,8 @@ BEGIN
     savings_balance = savings_balance - p_amount
   WHERE id = p_user_id;
 
-  INSERT INTO public.transactions (user_id, description, amount)
-  VALUES (p_user_id, 'Withdrawal from Savings Vault', p_amount);
+  INSERT INTO public.transactions (user_id, description, amount, type)
+  VALUES (p_user_id, 'Withdrawal from Savings Vault', p_amount, 'transfer');
 
   RETURN json_build_object('success', true);
 END;
@@ -110,8 +154,10 @@ AS $$
 DECLARE
   v_balance numeric;
   v_transaction_id uuid;
+  v_category_name text;
 BEGIN
   SELECT current_balance INTO v_balance FROM public.users WHERE id = p_user_id FOR UPDATE;
+  SELECT name INTO v_category_name FROM public.user_categories WHERE id = p_category_id;
 
   IF v_balance < p_amount THEN
     RETURN json_build_object('success', false, 'error', 'Insufficient funds');
@@ -121,8 +167,8 @@ BEGIN
   SET current_balance = current_balance - p_amount
   WHERE id = p_user_id;
 
-  INSERT INTO public.transactions (user_id, description, amount, category_id, session_id)
-  VALUES (p_user_id, p_description, -p_amount, p_category_id, p_session_id)
+  INSERT INTO public.transactions (user_id, description, amount, category_id, category, session_id, type)
+  VALUES (p_user_id, p_description, -p_amount, p_category_id, v_category_name, p_session_id, 'expense')
   RETURNING id INTO v_transaction_id;
 
   IF p_session_id IS NOT NULL THEN
@@ -190,6 +236,7 @@ DECLARE
   v_old_amount numeric;
   v_session_id uuid;
   v_diff numeric;
+  v_category_name text;
 BEGIN
   SELECT amount, session_id INTO v_old_amount, v_session_id
   FROM public.transactions
@@ -199,9 +246,7 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'Transaction not found');
   END IF;
 
-  -- expenses are negative in transactions table, but p_new_amount is expected as positive from UI for logic
-  -- let's make it consistent with log_expense where p_amount is positive.
-  -- v_old_amount is negative.
+  SELECT name INTO v_category_name FROM public.user_categories WHERE id = p_new_category;
 
   v_diff := (-p_new_amount) - v_old_amount;
 
@@ -219,16 +264,13 @@ BEGIN
   SET
     amount = -p_new_amount,
     description = p_new_description,
-    category_id = p_new_category
+    category_id = p_new_category,
+    category = v_category_name
   WHERE id = p_transaction_id;
-
-  CREATE POLICY "Users can insert own notifications"
-  ON public.notifications FOR INSERT
-  TO authenticated
-  WITH CHECK (auth.uid() = user_id);
 
   RETURN json_build_object('success', true);
 END;
 $$;
 
+-- Realtime enablement
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;

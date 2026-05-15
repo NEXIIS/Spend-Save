@@ -13,8 +13,10 @@ export interface Transaction {
   description: string;
   amount: number;
   type: string;
+  category?: string;
   category_id?: string;
   session_id: string | null;
+  date: string;
   created_at: string;
 }
 

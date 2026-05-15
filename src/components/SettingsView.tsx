@@ -106,7 +106,7 @@ export function SettingsView({ onClose, session, wallet, onRefetch }: SettingsVi
           className="w-full flex items-center justify-center gap-2 rounded-2xl bg-red-500/10 border border-red-500/20 py-4 font-semibold text-red-500 transition hover:bg-red-500/20"
         >
           <LogOut size={18} />
-          Sign Out of FinTrack
+          Sign Out of Money-Watch
         </button>
       </div>
     </div>
