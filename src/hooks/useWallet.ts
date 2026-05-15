@@ -147,36 +147,27 @@ export function useWallet(userId?: string) {
     }
   }, [userId]);
 
-  const markAsRead = (id: string) => {
-    // 1. Instantly update local UI to clear the red dot (feels fast to the user)
-    setNotifications((prev) => 
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+  const markAsRead = async (id: string) => {
+  setNotifications((prev) =>
+    prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+  );
+
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  } catch (err: any) {
+    console.error("Failed to mark as read:", err.message);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, is_read: false } : n))
     );
-
-    // 2. Start the 30-second fail-safe timer (30000 ms)
-    setTimeout(async () => {
-      try {
-        // 3. Time is up! NOW we officially tell the database it's read
-        const { error } = await supabase
-          .from('notifications')
-          .update({ is_read: true })
-          .eq('id', id);
-
-        if (error) throw error;
-
-        // 4. Successfully saved to DB, so we completely remove it from the UI list
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
-      } catch (err: any) {
-        console.error("Failed to mark as read, keeping in list:", err.message);
-        // Optional: If their internet is completely down when the 30s hits,
-        // revert it to 'unread' in the UI so they know it didn't save!
-        setNotifications((prev) => 
-          prev.map((n) => (n.id === id ? { ...n, is_read: false } : n))
-        );
-      }
-    }, 30000); 
-  };
-
+  }
+};
   useEffect(() => {
     if (!userId) {
       setWallet(null);
