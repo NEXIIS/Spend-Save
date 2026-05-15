@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { ArrowLeft, User, Mail, LogOut, Save } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import type { Session } from '@supabase/supabase-js';
+import type { UserWallet } from '../types';
 
 interface SettingsViewProps {
   onClose: () => void;
-  session: any;
-  wallet: any;
+  session: Session;
+  wallet: UserWallet | null;
   onRefetch: () => void; // So we can tell App.tsx to reload the new username
 }
 

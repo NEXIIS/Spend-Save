@@ -24,10 +24,10 @@ export function ExpenseChart({ transactions, categories = [] }: ExpenseChartProp
 
     const grouped = expenses.reduce((acc, curr) => {
       // 1. Find the matching category using the new category_id
-      const categoryMatch = categories.find(c => c.id === (curr as any).category_id);
+      const categoryMatch = categories.find(c => c.id === curr.category_id);
       
       // 2. Determine the name and color (with air-tight fallbacks to the old system)
-      const categoryName = categoryMatch?.name || curr.category || 'Uncategorized';
+      const categoryName = categoryMatch?.name || 'Uncategorized';
       const categoryColor = categoryMatch?.color;
 
       const existing = acc.find(item => item.name === categoryName);
@@ -78,7 +78,7 @@ export function ExpenseChart({ transactions, categories = [] }: ExpenseChartProp
               ))}
             </Pie>
             <Tooltip 
-              formatter={(value: any) => `₦${Number(value).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`}
+              formatter={(value: any) => `₦${Number(value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`}
               contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff' }}
               itemStyle={{ color: '#fff' }}
             />

@@ -13,7 +13,7 @@ export interface Transaction {
   description: string;
   amount: number;
   type: string;
-  category?: string;
+  category_id?: string;
   session_id: string | null;
   created_at: string;
 }
@@ -23,10 +23,20 @@ export interface ShoppingSession {
   user_id: string;
   name: string;
   budget_limit: number;
-  spent_amount: number;
+  current_spent: number;
   status: 'active' | 'completed';
   started_at: string;
   ended_at: string | null;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
 }
 
 export type UserCategory = {

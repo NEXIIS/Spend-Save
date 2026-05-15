@@ -16,9 +16,10 @@ import { Toaster } from 'react-hot-toast';
 import { ExpenseChart } from './components/ExpenseChart';
 import { SettingsView } from './components/SettingsView';
 import toast from 'react-hot-toast';
+import type { Session } from '@supabase/supabase-js';
 
 export default function App() {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [currentView, setCurrentView] = useState<'dashboard' | 'settings'>('dashboard');
 
@@ -56,8 +57,8 @@ export default function App() {
   };
 
   const handleStartSession = async (name: string, budget: number) => {
-    const session = await startSession(name, budget);
-    if (session) {
+    const newSession = await startSession(name, budget);
+    if (newSession) {
       toast.success(`Budget session '${name}' locked in! 🎯`);
       setShowSessionModal(false);
       setShowOverlay(true);
@@ -67,10 +68,14 @@ export default function App() {
   };
 
   const handleEndSession = async () => {
-    await endSession();
-    toast.success('Session ended! Great job tracking your spending. 🛑');
-    setShowOverlay(false);
-    await refetch();
+    try {
+      await endSession();
+      toast.success('Session ended! Great job tracking your spending. 🛑');
+      setShowOverlay(false);
+      await refetch();
+    } catch (err) {
+      console.error("Error in handleEndSession:", err);
+    }
   };
 
   const handleLogExpense = async (description: string, amount: number, categoryId: string) => {

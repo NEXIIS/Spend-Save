@@ -13,14 +13,14 @@ export function BudgetSessionOverlay({ session, onEnd, onLogExpenseClick }: Budg
   const [pulse, setPulse] = useState(false);
   
   // FIXED: Add the ? and || 0 so it doesn't crash if session is null
-  const [prevSpent, setPrevSpent] = useState(session?.spent_amount || 0); 
+  const [prevSpent, setPrevSpent] = useState(session?.current_spent || 0);
   const [confirmEnd, setConfirmEnd] = useState(false);
 
   // FIXED: Add this safety bounce right here!
   if (!session) return null;
 
-  // CHANGED: current_spent to spent_amount (defaulting to 0 just to be safe!)
-  const safeSpentAmount = session.spent_amount || 0;
+  // CHANGED: spent_amount to current_spent (defaulting to 0 just to be safe!)
+  const safeSpentAmount = session.current_spent || 0;
   const remaining = session.budget_limit - safeSpentAmount;
   const spentPercent = Math.min((safeSpentAmount / session.budget_limit) * 100, 100);
   const isOverBudget = remaining < 0;
@@ -164,7 +164,6 @@ export function BudgetSessionOverlay({ session, onEnd, onLogExpenseClick }: Budg
                 <span className="text-xs text-slate-400 uppercase tracking-wide">Spent</span>
               </div>
               <p className="text-lg font-bold text-white tabular-nums">
-                {/* CHANGED: current_spent to spent_amount */}
                 ₦{safeSpentAmount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
               </p>
             </div>
