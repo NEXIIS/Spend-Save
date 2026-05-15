@@ -446,6 +446,14 @@ export function useWallet(userId?: string) {
     logExpense,
     deleteTransaction,
     editTransaction,
-    refetch: () => Promise.all([fetchWallet(), fetchTransactions(), fetchActiveSession(), fetchPastSessions()]),
+    refetch: () => Promise.all([
+      fetchWallet(),
+      fetchTransactions(),
+      fetchChartTransactions(),
+      fetchActiveSession(),
+      fetchPastSessions(),
+      fetchNotifications(),
+      fetchCategories(),
+]),
   };
 }
