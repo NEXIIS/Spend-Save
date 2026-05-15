@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Wallet, Bell, Settings, Circle } from 'lucide-react';
+import type { Notification } from '../types';
 
 interface HeaderProps {
   onOpenSettings: () => void;
   name: string;
   // We added these two props to receive the data from your dashboard!
-  notifications?: any[];
+  notifications?: Notification[];
   markAsRead?: (id: string) => void;
 }
 

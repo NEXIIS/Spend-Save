@@ -19,7 +19,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
 
       <div className="space-y-3">
         {sessions.map((session) => {
-          const spent = session.spent_amount || 0;
+          const spent = session.current_spent || 0;
           const isOverBudget = spent > session.budget_limit;
           
           return (

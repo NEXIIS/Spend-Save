@@ -75,7 +75,7 @@ export function TransactionList({ transactions, onDeleteTransaction, onEditTrans
   const startEditing = () => {
     setEditDesc(selectedTx!.description);
     setEditAmount(Math.abs(selectedTx!.amount).toString());
-    setEditCategory(selectedTx!.category || 'Other');
+    setEditCategory(selectedTx!.category_id || '');
     setIsEditing(true);
   };
 

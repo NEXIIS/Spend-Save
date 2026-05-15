@@ -1,13 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import type { UserWallet, Transaction, ShoppingSession } from '../types';
+import type { UserWallet, Transaction, ShoppingSession, Notification, UserCategory } from '../types';
 import toast from 'react-hot-toast';
-
-export type UserCategory = {
-  id: string;
-  name: string;
-  color: string;
-}; 
 
 export function useWallet(userId?: string) {
   const [wallet, setWallet] = useState<UserWallet | null>(null);
@@ -16,22 +10,23 @@ export function useWallet(userId?: string) {
   const [activeSession, setActiveSession] = useState<ShoppingSession | null>(null);
   const [pastSessions, setPastSessions] = useState<ShoppingSession[]>([]);
   const [categories, setCategories] = useState<UserCategory[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchWallet = useCallback(async () => {
     if (!userId) return; 
     
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (error) {
-      setError(error.message);
-    } else if (!data) {
+      if (error) throw error;
+
+      if (!data) {
       const { data: { user } } = await supabase.auth.getUser();
       const customUsername = user?.user_metadata?.username || 'New User';
 
@@ -47,46 +42,57 @@ export function useWallet(userId?: string) {
         .single();
         
       if (insertError) setError(insertError.message);
-      else setWallet(newWallet);
-    } else {
-      setWallet(data);
+        else setWallet(newWallet);
+      } else {
+        setWallet(data);
+      }
+    } catch (err: any) {
+      setError(err.message);
     }
   }, [userId]);
 
   const fetchTransactions = useCallback(async () => {
     if (!userId) return;
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(5);
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(5);
 
-    if (error) setError(error.message);
-    else setTransactions(data || []);
+      if (error) throw error;
+      setTransactions(data || []);
+    } catch (err: any) {
+      setError(err.message);
+    }
   }, [userId]);
 
   const fetchChartTransactions = useCallback(async () => {
     if (!userId) return;
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(100); 
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-    if (error) setError(error.message);
-    else setChartTransactions(data || []);
+      if (error) throw error;
+      setChartTransactions(data || []);
+    } catch (err: any) {
+      setError(err.message);
+    }
   }, [userId]);
 
   const fetchActiveSession = useCallback(async () => {
     if (!userId) return;
     const { data, error } = await supabase
-      .from('spending_sessions') 
+      .from('shopping_sessions')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_active', true)     
-      .order('created_at', { ascending: false }) 
+      .eq('status', 'active')
+      .order('started_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
@@ -97,11 +103,11 @@ export function useWallet(userId?: string) {
   const fetchPastSessions = useCallback(async () => {
     if (!userId) return;
     const { data, error } = await supabase
-      .from('spending_sessions')
+      .from('shopping_sessions')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_active', false) 
-      .order('created_at', { ascending: false })
+      .eq('status', 'completed')
+      .order('started_at', { ascending: false })
       .limit(3); 
 
     if (error) setError(error.message);
@@ -110,56 +116,58 @@ export function useWallet(userId?: string) {
 
   const fetchCategories = useCallback(async () => {
     if (!userId) return;
-    const { data, error } = await supabase
-      .from('user_categories')
-      .select('*')
-      .eq('user_id', userId)
-      .order('name', { ascending: true }); 
+    try {
+      const { data, error } = await supabase
+        .from('user_categories')
+        .select('*')
+        .eq('user_id', userId)
+        .order('name', { ascending: true });
 
-    if (error) setError(error.message);
-    else setCategories(data || []);
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (err: any) {
+      setError(err.message);
+    }
   }, [userId]);
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(20); 
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-    if (!error && data) setNotifications(data);
+      if (error) throw error;
+      if (data) setNotifications(data);
+    } catch (err: any) {
+      console.error("Error fetching notifications:", err.message);
+    }
   }, [userId]);
 
-  const markAsRead = (id: string) => {
-    // 1. Instantly update local UI to clear the red dot (feels fast to the user)
-    setNotifications((prev) => 
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+  const markAsRead = async (id: string) => {
+  setNotifications((prev) =>
+    prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+  );
+
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  } catch (err: any) {
+    console.error("Failed to mark as read:", err.message);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, is_read: false } : n))
     );
-
-    // 2. Start the 40-second fail-safe timer (40000 ms)
-    setTimeout(async () => {
-      // 3. Time is up! NOW we officially tell the database it's read
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', id);
-
-      if (!error) {
-        // 4. Successfully saved to DB, so we completely remove it from the UI list
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
-      } else {
-        console.error("Failed to mark as read, keeping in list:", error);
-        // Optional: If their internet is completely down when the 40s hits, 
-        // revert it to 'unread' in the UI so they know it didn't save!
-        setNotifications((prev) => 
-          prev.map((n) => (n.id === id ? { ...n, is_read: false } : n))
-        );
-      }
-    }, 30000); 
-  };
-
+  }
+};
   useEffect(() => {
     if (!userId) {
       setWallet(null);
@@ -214,7 +222,7 @@ export function useWallet(userId?: string) {
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'spending_sessions', filter: `user_id=eq.${userId}` },
+        { event: 'UPDATE', schema: 'public', table: 'shopping_sessions', filter: `user_id=eq.${userId}` },
         (payload) => {
           setActiveSession((prev) =>
             prev && prev.id === payload.new.id ? (payload.new as ShoppingSession) : prev
@@ -225,7 +233,7 @@ export function useWallet(userId?: string) {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
         (payload) => {
-          setNotifications((prev) => [payload.new, ...prev]);
+          setNotifications((prev) => [payload.new as Notification, ...prev]);
         }
       )
       .subscribe();
@@ -287,13 +295,13 @@ export function useWallet(userId?: string) {
 
     try {
       const { data, error } = await supabase
-        .from('spending_sessions') 
+        .from('shopping_sessions')
         .insert([
           {
             user_id: userId, 
             name: name,
             budget_limit: budget, 
-            is_active: true
+            status: 'active'
           }
         ])
         .select()
@@ -316,12 +324,18 @@ export function useWallet(userId?: string) {
   const endSession = async (): Promise<void> => {
     if (!activeSession || !userId) return;
 
-    await supabase
-      .from('spending_sessions')  
-      .update({ is_active: false }) 
-      .eq('id', activeSession.id);
+    try {
+      const { error } = await supabase
+        .from('shopping_sessions')
+        .update({ status: 'completed', ended_at: new Date().toISOString() })
+        .eq('id', activeSession.id);
 
-    setActiveSession(null);
+      if (error) throw error;
+      setActiveSession(null);
+    } catch (err: any) {
+      console.error("Error ending session:", err.message);
+      toast.error("Failed to end session properly");
+    }
   };
 
   const logExpense = async (description: string, amount: number, categoryId: string): Promise<boolean> => {
@@ -361,8 +375,9 @@ export function useWallet(userId?: string) {
         p_user_id: userId
       });
 
-      if (error || !data?.success) {
-        throw new Error(error?.message || data?.error || 'Failed to delete transaction');
+      const result = data as { success: boolean; error?: string } | null;
+      if (error || !result?.success) {
+        throw new Error(error?.message || result?.error || 'Failed to delete transaction');
       }
 
       toast.success('Transaction deleted and refunded! ♻️');
@@ -388,8 +403,9 @@ export function useWallet(userId?: string) {
         p_new_category: newCategory
       });
 
-      if (error || !data?.success) {
-        throw new Error(error?.message || data?.error || 'Failed to edit transaction');
+      const result = data as { success: boolean; error?: string } | null;
+      if (error || !result?.success) {
+        throw new Error(error?.message || result?.error || 'Failed to edit transaction');
       }
 
       toast.success('Transaction updated! ✏️');
@@ -421,6 +437,14 @@ export function useWallet(userId?: string) {
     logExpense,
     deleteTransaction,
     editTransaction,
-    refetch: () => Promise.all([fetchWallet(), fetchTransactions(), fetchActiveSession(), fetchPastSessions()]),
+    refetch: () => Promise.all([
+      fetchWallet(),
+      fetchTransactions(),
+      fetchChartTransactions(),
+      fetchActiveSession(),
+      fetchPastSessions(),
+      fetchNotifications(),
+      fetchCategories(),
+]),
   };
 }
