@@ -222,13 +222,13 @@ BEGIN
     category_id = p_new_category
   WHERE id = p_transaction_id;
 
+  CREATE POLICY "Users can insert own notifications"
+  ON public.notifications FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
   RETURN json_build_object('success', true);
 END;
 $$;
-
--- Re-allow anon access for demo if needed (following previous migration pattern)
-CREATE POLICY "Allow anon read notifications" ON public.notifications FOR SELECT TO anon USING (true);
-CREATE POLICY "Allow anon update notifications" ON public.notifications FOR UPDATE TO anon USING (true);
-CREATE POLICY "Allow anon read categories" ON public.user_categories FOR SELECT TO anon USING (true);
 
 ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
